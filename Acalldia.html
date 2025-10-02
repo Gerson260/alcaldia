@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Meteorológico Georreferenciado</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tabs {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            padding: 0 2rem;
+        }
+
+        .tab {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            font-weight: 500;
+            color: #6b7280;
+        }
+
+        .tab:hover {
+            background: #f9fafb;
+            color: #2563eb;
+        }
+
+        .tab.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-success {
+            background: #16a34a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #15803d;
+        }
+
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+
+        /* Mapa */
+        .map-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            background: linear-gradient(135deg, #e0f2fe 0%, #dcfce7 100%);
+            border-radius: 0.75rem;
+            border: 2px solid #e5e7eb;
+            overflow: hidden;
+        }
+
+        .map-grid {
+            position: absolute;
+            inset: 0;
+            opacity: 0.2;
+        }
+
+        .map-grid-line {
+            position: absolute;
+            background: #9ca3af;
+        }
+
+        .map-grid-h {
+            width: 100%;
+            height: 1px;
+        }
+
+        .map-grid-v {
+            width: 1px;
+            height: 100%;
+        }
+
+        .station-marker {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .station-marker:hover .station-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .marker-icon {
+            width: 40px;
+            height: 40px;
+            fill: #dc2626;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
+
+        .marker-icon.inactive {
+            fill: #9ca3af;
+        }
+
+        .marker-icon.active {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .station-tooltip {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+            z-index: 10;
+            margin-top: 0.5rem;
+        }
+
+        .station-tooltip p {
+            font-size: 0.875rem;
+            margin: 0.25rem 0;
+        }
+
+        /* Widgets de parámetros */
+        .param-widget {
+            text-align: center;
+        }
+
+        .param-icon {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .gauge-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+        }
+
+        .gauge-svg {
+            transform: rotate(-90deg);
+        }
+
+        .gauge-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .gauge-value-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .gauge-value-unit {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        .compass {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+            border: 4px solid #e5e7eb;
+            border-radius: 50%;
+        }
+
+        .compass-direction {
+            position: absolute;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .compass-n { top: 4px; left: 50%; transform: translateX(-50%); }
+        .compass-s { bottom: 4px; left: 50%; transform: translateX(-50%); }
+        .compass-e { right: 4px; top: 50%; transform: translateY(-50%); }
+        .compass-w { left: 4px; top: 50%; transform: translateY(-50%); }
+
+        .compass-needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 60px;
+            background: #16a34a;
+            transform-origin: center 100%;
+            transition: transform 1s;
+        }
+
+        .compass-needle::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 16px solid #16a34a;
+        }
+
+        .thermometer {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            height: 150px;
+            gap: 0.5rem;
+        }
+
+        .thermometer-bar {
+            position: relative;
+            width: 32px;
+            height: 100%;
+            background: #e5e7eb;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .thermometer-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: linear-gradient(to top, #dc2626, #fb923c);
+            border-radius: 16px;
+            transition: height 1s;
+        }
+
+        .thermometer-scale {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .humidity-bar {
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(to top, #06b6d4 0%, rgba(6, 182, 212, 0.1) 100%);
+            border-radius: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .humidity-wave {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 50%;
+            background: #06b6d4;
+            animation: wave 3s infinite;
+        }
+
+        @keyframes wave {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .sun-icon {
+            font-size: 5rem;
+            transition: all 0.5s;
+        }
+
+        .uv-bar {
+            width: 32px;
+            height: 150px;
+            margin: 0 auto;
+            background: linear-gradient(to top, #4ade80, #facc15, #fb923c, #f87171, #dc2626);
+            border-radius: 16px;
+            position: relative;
+        }
+
+        .uv-indicator {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background: black;
+            border: 2px solid white;
+            transition: bottom 1s;
+        }
+
+        .rain-icon {
+            font-size: 5rem;
+            color: #1d4ed8;
+            transition: all 0.5s;
+        }
+
+        .param-details {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 1rem;
+        }
+
+        .param-details p {
+            margin: 0.25rem 0;
+        }
+
+        .value-display {
+            margin-top: 1rem;
+        }
+
+        .value-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .value-unit {
+            font-size: 1rem;
+            color: #6b7280;
+        }
+
+        /* Tabla */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        thead {
+            background: #f9fafb;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-inactive {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        /* Formulario */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+
+        .checkbox-label input {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        /* Reporte */
+        #reporte-preview {
+            background: white;
+        }
+
+        .reporte-header {
+            text-align: center;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .reporte-header h2 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        .summary-card p:first-child {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-card p:last-child {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 2rem 0;
+        }
+
+        footer {
+            background: #1f2937;
+            color: white;
+            padding: 1.5rem 2rem;
+            margin-top: 3rem;
+            text-align: center;
+        }
+
+        @media print {
+            .header, .tabs, footer, .btn {
+                display: none !important;
+            }
+            .container {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-info">
+            <div>
+                <h1>Sistema de Monitoreo Meteorológico</h1>
+                <p>Estaciones Georreferenciadas - La Paz, Bolivia</p>
+            </div>
+            <div style="text-align: right;">
+                <p style="font-size: 0.875rem; opacity: 0.9;">Última actualización</p>
+                <p id="current-time" style="font-size: 1.125rem; font-weight: 600;"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <div class="tab active" onclick="showTab('mapa')">📍 Mapa de Estaciones</div>
+        <div class="tab" onclick="showTab('monitoreo')">📊 Monitoreo en Tiempo Real</div>
+        <div class="tab" onclick="showTab('graficos')">📈 Gráficos Históricos</div>
+        <div class="tab" onclick="showTab('reportes')">📄 Reportes</div>
+    </div>
+
+    <!-- Contenido -->
+    <div class="container">
+        <!-- TAB 1: MAPA -->
+        <div id="tab-mapa" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Mapa de Estaciones</h3>
+                    <button class="btn btn-primary" onclick="alert('Función para agregar estación')">➕ Agregar Estación</button>
+                </div>
+                
+                <div class="map-container">
+                    <div class="map-grid">
+                        <div class="map-grid-line map-grid-h" style="top: 10%"></div>
+                        <div class="map-grid-line map-grid-h" style="top: 20%"></div>
+                        <div class="map-grid-line map-grid-h" style="top: 30%"></div>
+                        <div class="map-grid-line map-grid-h" style="top: 40%"></div>
+                        <div class="map-grid-line map-grid-h" style="top: 50%"></div>
+                        <div class="map-grid-line map-grid-h" style="top: 60%"></div>
+                        <div class="map-grid-line map-grid-h" style="top: 70%"></div>
+                        <div class="map-grid-line map-grid-h" style="top: 80%"></div>
+                        <div class="map-grid-line map-grid-h" style="top: 90%"></div>
+                        
+                        <div class="map-grid-line map-grid-v" style="left: 10%"></div>
+                        <div class="map-grid-line map-grid-v" style="left: 20%"></div>
+                        <div class="map-grid-line map-grid-v" style="left: 30%"></div>
+                        <div class="map-grid-line map-grid-v" style="left: 40%"></div>
+                        <div class="map-grid-line map-grid-v" style="left: 50%"></div>
+                        <div class="map-grid-line map-grid-v" style="left: 60%"></div>
+                        <div class="map-grid-line map-grid-v" style="left: 70%"></div>
+                        <div class="map-grid-line map-grid-v" style="left: 80%"></div>
+                        <div class="map-grid-line map-grid-v" style="left: 90%"></div>
+                    </div>
+
+                    <div id="stations-container"></div>
+
+                    <div style="position: absolute; bottom: 1rem; right: 1rem; background: white; padding: 1rem; border-radius: 0.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <p style="font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem;">Leyenda</p>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; margin-bottom: 0.25rem;">
+                            <svg width="16" height="16"><path d="M8 0 L12 12 L8 10 L4 12 Z" fill="#dc2626"/></svg>
+                            <span>Activa</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
+                            <svg width="16" height="16"><path d="M8 0 L12 12 L8 10 L4 12 Z" fill="#9ca3af"/></svg>
+                            <span>Inactiva</span>
+                        </div>
+                    </div>
+
+                    <div style="position: absolute; bottom: 1rem; left: 1rem; background: white; padding: 0.5rem 1rem; border-radius: 0.375rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 0.75rem;">
+                        La Paz, Bolivia
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="card-title" style="margin-bottom: 1rem;">Estaciones Registradas</h3>
+                <div style="overflow-x: auto;">
+                    <table id="stations-table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Coordenadas</th>
+                                <th>Estado</th>
+                                <th>Última Lectura</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: MONITOREO -->
+        <div id="tab-monitoreo" class="tab-content">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 class="card-title" id="selected-station-name">Estación Centro</h3>
+                        <p style="color: #6b7280; font-size: 0.875rem;" id="selected-station-coords">-16.5000°, -68.1500°</p>
+                    </div>
+                    <select id="station-selector" class="form-select" style="width: auto;" onchange="changeStation()">
+                        <option value="0">Estación Centro</option>
+                        <option value="1">Estación Norte</option>
+                        <option value="2">Estación Sur</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-4" id="parameters-grid"></div>
+        </div>
+
+        <!-- TAB 3: GRÁFICOS -->
+        <div id="tab-graficos" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Gráficos Históricos - <span id="chart-station-name">Estación Centro</span></h3>
+                    <select class="form-select" style="width: auto;" onchange="changeChartStation(this.value)">
+                        <option value="0">Estación Centro</option>
+                        <option value="1">Estación Norte</option>
+                        <option value="2">Estación Sur</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <h4 style="font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        🌡️ Temperatura (últimas 24 horas)
+                    </h4>
+                    <div class="chart-container">
+                        <canvas id="temp-chart"></canvas>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <h4 style="font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        💧 Humedad y Velocidad del Viento
+                    </h4>
+                    <div class="chart-container">
+                        <canvas id="humidity-wind-chart"></canvas>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <h4 style="font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        🌧️ Precipitación Acumulada
+                    </h4>
+                    <div class="chart-container">
+                        <canvas id="rain-chart"></canvas>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 style="font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        ☀️ Radiación Solar
+                    </h4>
+                    <div class="chart-container">
+                        <canvas id="radiation-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: REPORTES -->
+        <div id="tab-reportes" class="tab-content">
+            <div class="card">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+                    <span style="font-size: 1.5rem;">📄</span>
+                    <h3 class="card-title">Generador de Reportes</h3>
+                </div>
+
+                <div class="grid grid-2" style="margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">Estación</label>
+                        <select class="form-select">
+                            <option>Estación Centro</option>
+                            <option>Estación Norte</option>
+                            <option>Estación Sur</option>
+                            <option>Todas las estaciones</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Tipo de Reporte</label>
+                        <select class="form-select">
+                            <option>Reporte Completo</option>
+                            <option>Temperatura</option>
+                            <option>Viento</option>
+                            <option>Precipitación</option>
+                            <option>Radiación Solar</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Fecha Inicio</label>
+                        <input type="date" class="form-input" value="2025-10-01">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Fecha Fin</label>
+                        <input type="date" class="form-input" value="2025-10-01">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Formato</label>
+                        <select class="form-select">
+                            <option>PDF</option>
+                            <option>Excel</option>
+                            <option>CSV</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Intervalo de Datos</label>
+                        <select class="form-select">
+                            <option>Cada hora</option>
+                            <option>Cada 30 minutos</option>
+                            <option>Cada 15 minutos</option>
+                            <option>Diario</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="font-weight: 600; margin-bottom: 1rem;">Parámetros a Incluir</h4>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked>
+                            <span>Velocidad del Viento</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked>
+                            <span>Dirección del Viento</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked>
+                            <span>Temperatura</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked>
+                            <span>Humedad</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked>
+                            <span>Radiación Solar</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked>
+                            <span>Índice UV</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked>
+                            <span>Precipitación</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked>
+                            <span>Gráficos</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <button class="btn btn-primary" onclick="window.print()">📄 Generar Reporte</button>
+                    <button class="btn btn-success" onclick="downloadReport()">⬇️ Descargar</button>
+                    <button class="btn" style="background: white; border: 1px solid #d1d5db;">👁️ Vista Previa</button>
+                </div>
+            </div>
+
+            <!-- Vista Previa del Reporte -->
+            <div id="reporte-preview" class="card">
+                <div class="reporte-header">
+                    <h2>Reporte Meteorológico</h2>
+                    <p style="color: #6b7280; margin: 0.5rem 0;">Estación Centro</p>
+                    <p style="color: #6b7280;" id="report-date"></p>
+                </div>
+
+                <h3 style="font-weight: 600; margin-bottom: 1rem;">Resumen Ejecutivo</h3>
+                <div class="summary-grid">
+                    <div class="summary-card" style="background: #fef2f2;">
+                        <p>Temperatura</p>
+                        <p style="color: #dc2626;">18.7°C</p>
+                    </div>
+                    <div class="summary-card" style="background: #ecfeff;">
+                        <p>Humedad</p>
+                        <p style="color: #06b6d4;">45.5%</p>
+                    </div>
+                    <div class="summary-card" style="background: #eff6ff;">
+                        <p>Viento</p>
+                        <p style="color: #2563eb;">8.5 m/s</p>
+                    </div>
+                    <div class="summary-card" style="background: #eef2ff;">
+                        <p>Precipitación</p>
+                        <p style="color: #4f46e5;">2.4 mm</p>
+                    </div>
+                </div>
+
+                <h3 style="font-weight: 600; margin-bottom: 1rem;">Detalle de Parámetros</h3>
+                <div style="overflow-x: auto; margin-bottom: 2rem;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Parámetro</th>
+                                <th>Valor Actual</th>
+                                <th>Rango</th>
+                                <th>Precisión</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Velocidad del Viento</td>
+                                <td style="font-weight: 600;">8.5 m/s</td>
+                                <td>0-50 m/s</td>
+                                <td>±1 m/s / ±10%</td>
+                            </tr>
+                            <tr style="background: #f9fafb;">
+                                <td>Dirección del Viento</td>
+                                <td style="font-weight: 600;">245° (SO)</td>
+                                <td>0-359°</td>
+                                <td>±15°</td>
+                            </tr>
+                            <tr>
+                                <td>Temperatura</td>
+                                <td style="font-weight: 600;">18.7°C</td>
+                                <td>-40 a 60°C</td>
+                                <td>±0.3°C</td>
+                            </tr>
+                            <tr style="background: #f9fafb;">
+                                <td>Humedad</td>
+                                <td style="font-weight: 600;">45.5%</td>
+                                <td>1-99%</td>
+                                <td>±3.5%</td>
+                            </tr>
+                            <tr>
+                                <td>Radiación Solar</td>
+                                <td style="font-weight: 600;">85.3 Klux</td>
+                                <td>0-200 Klux</td>
+                                <td>±25%</td>
+                            </tr>
+                            <tr style="background: #f9fafb;">
+                                <td>Índice UV</td>
+                                <td style="font-weight: 600;">8</td>
+                                <td>1-15</td>
+                                <td>±2</td>
+                            </tr>
+                            <tr>
+                                <td>Precipitación</td>
+                                <td style="font-weight: 600;">2.4 mm</td>
+                                <td>0-9999 mm</td>
+                                <td>±10%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 style="font-weight: 600; margin-bottom: 1rem;">Tendencia de Temperatura (24h)</h3>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="report-chart"></canvas>
+                </div>
+
+                <h3 style="font-weight: 600; margin: 2rem 0 1rem;">Observaciones</h3>
+                <textarea class="form-input" rows="4" placeholder="Agregue observaciones o notas sobre las condiciones meteorológicas..."></textarea>
+
+                <div style="border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 2rem; font-size: 0.875rem; color: #6b7280;">
+                    <p style="margin: 0.25rem 0;">Reporte generado el: <span id="generation-datetime"></span></p>
+                    <p style="margin: 0.25rem 0;">Sistema de Monitoreo Meteorológico - Estaciones Georreferenciadas</p>
+                    <p style="margin: 0.25rem 0;">Ubicación: -16.5000°, -68.1500°</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2025 Sistema de Monitoreo Meteorológico. Todos los derechos reservados.</p>
+        <p style="margin-top: 0.5rem;">Estaciones activas: <span id="active-stations">2</span> / <span id="total-stations">3</span></p>
+    </footer>
+
+    <script>
+        // Datos de las estaciones
+        const stations = [
+            {
+                id: 1,
+                nombre: 'Estación Centro',
+                lat: -16.5000,
+                lng: -68.1500,
+                activa: true,
+                datos: {
+                    velocidadViento: 8.5,
+                    direccionViento: 245,
+                    temperatura: 18.7,
+                    humedad: 45.5,
+                    radiacionSolar: 85.3,
+                    indiceUV: 8,
+                    precipitacion: 2.4
+                }
+            },
+            {
+                id: 2,
+                nombre: 'Estación Norte',
+                lat: -16.4800,
+                lng: -68.1300,
+                activa: true,
+                datos: {
+                    velocidadViento: 12.3,
+                    direccionViento: 180,
+                    temperatura: 16.2,
+                    humedad: 52.8,
+                    radiacionSolar: 92.1,
+                    indiceUV: 9,
+                    precipitacion: 0.0
+                }
+            },
+            {
+                id: 3,
+                nombre: 'Estación Sur',
+                lat: -16.5200,
+                lng: -68.1700,
+                activa: false,
+                datos: {
+                    velocidadViento: 5.2,
+                    direccionViento: 90,
+                    temperatura: 19.5,
+                    humedad: 38.2,
+                    radiacionSolar: 78.9,
+                    indiceUV: 7,
+                    precipitacion: 1.2
+                }
+            }
+        ];
+
+        let currentStation = 0;
+        let charts = {};
+
+        // Generar datos históricos
+        function generateHistoricalData() {
+            const data = [];
+            for (let i = 23; i >= 0; i--) {
+                data.push({
+                    hora: `${i}:00`,
+                    temperatura: 15 + Math.random() * 8,
+                    humedad: 35 + Math.random() * 25,
+                    viento: Math.random() * 15,
+                    precipitacion: Math.random() * 5,
+                    radiacion: (i >= 6 && i <= 18) ? 50 + Math.random() * 50 : Math.random() * 20
+                });
+            }
+            return data;
+        }
+
+        const historicalData = generateHistoricalData();
+
+        // Actualizar hora
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString('es-BO');
+            document.getElementById('report-date').textContent = now.toLocaleDateString('es-BO', { 
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+            });
+            document.getElementById('generation-datetime').textContent = now.toLocaleString('es-BO');
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+
+        // Cambiar de tab
+        function showTab(tabName) {
+            // Ocultar todos los tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Mostrar tab seleccionado
+            document.getElementById('tab-' + tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            // Actualizar gráficos si es necesario
+            if (tabName === 'graficos') {
+                initCharts();
+            }
+        }
+
+        // Dirección del viento
+        function getWindDirection(degrees) {
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+            const index = Math.round(degrees / 45) % 8;
+            return directions[index];
+        }
+
+        // Color UV
+        function getUVColor(uv) {
+            if (uv <= 2) return '#4ade80';
+            if (uv <= 5) return '#facc15';
+            if (uv <= 7) return '#fb923c';
+            if (uv <= 10) return '#f87171';
+            return '#dc2626';
+        }
+
+        // Renderizar marcadores en el mapa
+        function renderStations() {
+            const container = document.getElementById('stations-container');
+            const tbody = document.querySelector('#stations-table tbody');
+            
+            container.innerHTML = '';
+            tbody.innerHTML = '';
+
+            stations.forEach((station, index) => {
+                // Marcador en el mapa
+                const top = 30 + index * 20;
+                const left = 25 + index * 25;
+                
+                const marker = document.createElement('div');
+                marker.className = 'station-marker';
+                marker.style.top = top + '%';
+                marker.style.left = left + '%';
+                marker.innerHTML = `
+                    <svg class="marker-icon ${station.activa ? 'active' : 'inactive'}" viewBox="0 0 24 24">
+                        <path d="M12 2 L16 16 L12 14 L8 16 Z"/>
+                    </svg>
+                    <div class="station-tooltip">
+                        <p style="font-weight: 600;">${station.nombre}</p>
+                        <p>${station.lat.toFixed(4)}°, ${station.lng.toFixed(4)}°</p>
+                        <p>Temp: ${station.datos.temperatura}°C</p>
+                    </div>
+                `;
+                marker.onclick = () => {
+                    currentStation = index;
+                    showTab('monitoreo');
+                    updateParameters();
+                };
+                container.appendChild(marker);
+
+                // Fila en la tabla
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td style="font-weight: 500;">${station.nombre}</td>
+                    <td style="color: #6b7280;">${station.lat.toFixed(4)}°, ${station.lng.toFixed(4)}°</td>
+                    <td><span class="status-badge ${station.activa ? 'status-active' : 'status-inactive'}">
+                        ${station.activa ? 'Activa' : 'Inactiva'}
+                    </span></td>
+                    <td style="color: #6b7280;">${station.datos.temperatura}°C</td>
+                    <td><button onclick="viewStation(${index})" style="color: #2563eb; background: none; border: none; cursor: pointer;">Ver detalles</button></td>
+                `;
+            });
+
+            // Actualizar contador
+            const activeCount = stations.filter(s => s.activa).length;
+            document.getElementById('active-stations').textContent = activeCount;
+            document.getElementById('total-stations').textContent = stations.length;
+        }
+
+        function viewStation(index) {
+            currentStation = index;
+            showTab('monitoreo');
+            updateParameters();
+            document.getElementById('station-selector').value = index;
+        }
+
+        // Actualizar parámetros
+        function updateParameters() {
+            const station = stations[currentStation];
+            const datos = station.datos;
+
+            document.getElementById('selected-station-name').textContent = station.nombre;
+            document.getElementById('selected-station-coords').textContent = 
+                `${station.lat.toFixed(4)}°, ${station.lng.toFixed(4)}°`;
+
+            const grid = document.getElementById('parameters-grid');
+            grid.innerHTML = `
+                <!-- Velocidad del Viento -->
+                <div class="card param-widget">
+                    <div class="param-icon" style="color: #2563eb;">
+                        💨 Velocidad del Viento
+                    </div>
+                    <div class="gauge-container">
+                        <svg class="gauge-svg" width="150" height="150" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+                            <circle cx="60" cy="60" r="50" fill="none" stroke="#3b82f6" stroke-width="10"
+                                    stroke-dasharray="${(datos.velocidadViento / 50) * 314} 314"
+                                    stroke-linecap="round"/>
+                        </svg>
+                        <div class="gauge-value">
+                            <div class="gauge-value-number">${datos.velocidadViento}</div>
+                            <div class="gauge-value-unit">m/s</div>
+                        </div>
+                    </div>
+                    <div class="param-details">
+                        <p>Rango: 0-50 m/s</p>
+                        <p>Resolución: 0.1 m/s</p>
+                    </div>
+                </div>
+
+                <!-- Dirección del Viento -->
+                <div class="card param-widget">
+                    <div class="param-icon" style="color: #16a34a;">
+                        🧭 Dirección del Viento
+                    </div>
+                    <div class="compass">
+                        <div class="compass-direction compass-n">N</div>
+                        <div class="compass-direction compass-s">S</div>
+                        <div class="compass-direction compass-e">E</div>
+                        <div class="compass-direction compass-w">O</div>
+                        <div class="compass-needle" style="transform: translate(-50%, -100%) rotate(${datos.direccionViento}deg);"></div>
+                    </div>
+                    <div class="value-display">
+                        <div class="value-number">${datos.direccionViento}°</div>
+                        <div class="value-unit">${getWindDirection(datos.direccionViento)}</div>
+                    </div>
+                    <div class="param-details">
+                        <p>Rango: 0-359°</p>
+                        <p>Precisión: ±15°</p>
+                    </div>
+                </div>
+
+                <!-- Temperatura -->
+                <div class="card param-widget">
+                    <div class="param-icon" style="color: #dc2626;">
+                        🌡️ Temperatura
+                    </div>
+                    <div class="thermometer">
+                        <div class="thermometer-bar">
+                            <div class="thermometer-fill" style="height: ${((datos.temperatura + 40) / 100) * 100}%"></div>
+                        </div>
+                        <div class="thermometer-scale">
+                            <span>60°C</span>
+                            <span>20°C</span>
+                            <span>-40°C</span>
+                        </div>
+                    </div>
+                    <div class="value-display">
+                        <div class="value-number">${datos.temperatura}°C</div>
+                    </div>
+                    <div class="param-details">
+                        <p>Rango: -40 a 60°C</p>
+                        <p>Precisión: ±0.3°C</p>
+                    </div>
+                </div>
+
+                <!-- Humedad -->
+                <div class="card param-widget">
+                    <div class="param-icon" style="color: #06b6d4;">
+                        💧 Humedad
+                    </div>
+                    <div class="humidity-bar" style="height: 150px;">
+                        <div class="humidity-wave" style="height: ${datos.humedad}%;"></div>
+                    </div>
+                    <div class="value-display">
+                        <div class="value-number">${datos.humedad}%</div>
+                    </div>
+                    <div class="param-details">
+                        <p>Rango: 1-99%</p>
+                        <p>Precisión: ±3.5%</p>
+                    </div>
+                </div>
+
+                <!-- Radiación Solar -->
+                <div class="card param-widget">
+                    <div class="param-icon" style="color: #eab308;">
+                        ☀️ Radiación Solar
+                    </div>
+                    <div class="sun-icon" style="opacity: ${0.3 + (datos.radiacionSolar / 200) * 0.7}; filter: drop-shadow(0 0 ${datos.radiacionSolar / 5}px #fbbf24);">
+                        ☀️
+                    </div>
+                    <div class="value-display">
+                        <div class="value-number">${datos.radiacionSolar}</div>
+                        <div class="value-unit">Klux</div>
+                    </div>
+                    <div class="param-details">
+                        <p>Rango: 0-200 Klux</p>
+                        <p>Precisión: ±25%</p>
+                    </div>
+                </div>
+
+                <!-- Índice UV -->
+                <div class="card param-widget">
+                    <div class="param-icon" style="color: #f97316;">
+                        🌞 Índice UV
+                    </div>
+                    <div class="uv-bar">
+                        <div class="uv-indicator" style="bottom: ${(datos.indiceUV / 15) * 100}%;"></div>
+                    </div>
+                    <div class="value-display">
+                        <div class="value-number" style="color: ${getUVColor(datos.indiceUV)};">${datos.indiceUV}</div>
+                        <div class="value-unit">
+                            ${datos.indiceUV <= 2 ? 'Bajo' : datos.indiceUV <= 5 ? 'Moderado' : datos.indiceUV <= 7 ? 'Alto' : datos.indiceUV <= 10 ? 'Muy Alto' : 'Extremo'}
+                        </div>
+                    </div>
+                    <div class="param-details">
+                        <p>Rango: 1-15</p>
+                        <p>Precisión: ±2</p>
+                    </div>
+                </div>
+
+                <!-- Precipitación -->
+                <div class="card param-widget">
+                    <div class="param-icon" style="color: #1d4ed8;">
+                        🌧️ Precipitación
+                    </div>
+                    <div class="rain-icon" style="opacity: ${0.3 + (Math.min(datos.precipitacion, 50) / 50) * 0.7};">
+                        ☔
+                    </div>
+                    <div class="value-display">
+                        <div class="value-number">${datos.precipitacion}</div>
+                        <div class="value-unit">mm</div>
+                    </div>
+                    <div class="param-details">
+                        <p>Rango: 0-9999 mm</p>
+                        <p>Precisión: ±10%</p>
+                    </div>
+                </div>
+
+                <!-- Estado General -->
+                <div class="card">
+                    <h4 style="font-weight: 600; margin-bottom: 1rem;">Estado General</h4>
+                    <div style="font-size: 0.875rem;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: #6b7280;">Última actualización:</span>
+                            <span style="font-weight: 600;">Hace 2 min</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: #6b7280;">Estado de conexión:</span>
+                            <span style="color: #16a34a; font-weight: 600;">${station.activa ? 'Online' : 'Offline'}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: #6b7280;">Batería:</span>
+                            <span style="font-weight: 600;">95%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #6b7280;">Calidad de señal:</span>
+                            <span style="font-weight: 600;">Excelente</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                        ⚙️ Configurar
+                    </button>
+                </div>
+            `;
+        }
+
+        function changeStation() {
+            currentStation = parseInt(document.getElementById('station-selector').value);
+            updateParameters();
+        }
+
+        // Inicializar gráficos
+        function initCharts() {
+            const labels = historicalData.map(d => d.hora);
+
+            // Gráfico de temperatura
+            if (charts.temp) charts.temp.destroy();
+            charts.temp = new Chart(document.getElementById('temp-chart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Temperatura (°C)',
+                        data: historicalData.map(d => d.temperatura),
+                        borderColor: '#dc2626',
+                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                        tension: 0.4,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true }
+                    }
+                }
+            });
+
+            // Gráfico de humedad y viento
+            if (charts.humidityWind) charts.humidityWind.destroy();
+            charts.humidityWind = new Chart(document.getElementById('humidity-wind-chart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Humedad (%)',
+                            data: historicalData.map(d => d.humedad),
+                            borderColor: '#06b6d4',
+                            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Viento (m/s)',
+                            data: historicalData.map(d => d.viento),
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', position: 'left' },
+                        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+
+            // Gráfico de precipitación
+            if (charts.rain) charts.rain.destroy();
+            charts.rain = new Chart(document.getElementById('rain-chart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Precipitación (mm)',
+                        data: historicalData.map(d => d.precipitacion),
+                        backgroundColor: '#1d4ed8'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Gráfico de radiación
+            if (charts.radiation) charts.radiation.destroy();
+            charts.radiation = new Chart(document.getElementById('radiation-chart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Radiación (Klux)',
+                        data: historicalData.map(d => d.radiacion),
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'rgba(251, 191, 36, 0.3)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Gráfico del reporte
+            if (charts.report) charts.report.destroy();
+            charts.report = new Chart(document.getElementById('report-chart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Temperatura (°C)',
+                        data: historicalData.map(d => d.temperatura),
+                        borderColor: '#dc2626',
+                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                        tension: 0.4,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        function changeChartStation(value) {
+            currentStation = parseInt(value);
+            document.getElementById('chart-station-name').textContent = stations[currentStation].nombre;
+            // Aquí podrías actualizar los gráficos con datos de la nueva estación
+        }
+
+        // Descargar reporte
+        function downloadReport() {
+            const station = stations[currentStation];
+            const data = `Reporte Meteorológico
+Estación: ${station.nombre}
+Fecha: ${new Date().toLocaleDateString()}
+
+Datos Actuales:
+Temperatura: ${station.datos.temperatura}°C
+Humedad: ${station.datos.humedad}%
+Viento: ${station.datos.velocidadViento} m/s
+Dirección: ${station.datos.direccionViento}° (${getWindDirection(station.datos.direccionViento)})
+Precipitación: ${station.datos.precipitacion} mm
+Radiación Solar: ${station.datos.radiacionSolar} Klux
+Índice UV: ${station.datos.indiceUV}
+
+Ubicación: ${station.lat.toFixed(4)}°, ${station.lng.toFixed(4)}°
+`;
+            
+            const blob = new Blob([data], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reporte_${station.nombre.replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Inicializar
+        renderStations();
+        updateParameters();
+        initCharts();
+    </script>
+</body>
+</html>
